@@ -51,6 +51,14 @@
       <div id="swap-list"></div>
       <button class="add-swap-btn" onclick="openSwapModal()">+ Ruil aanvragen</button>
     </div>
+    <div class="ical-section">
+  <div class="swap-title">📅 Kalender importeren</div>
+  <div class="ical-input-row">
+    <input class="modal-input" id="ical-url" placeholder="Plak hier je iCal link (Parro, Google, etc.)" />
+    <button class="btn-primary" id="ical-import-btn" onclick="importCalendar()" style="white-space:nowrap;">Importeren</button>
+  </div>
+  <div id="ical-events" style="margin-top:10px;"></div>
+</div>
   </div>
 </div>
 
