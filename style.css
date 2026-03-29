@@ -37,22 +37,28 @@ body { font-family: system-ui, sans-serif; background: #fdf8f5; color: #2c2c2a; 
 .grid-header.today .day-name { color: #534ab7; }
 .day-name { font-size: 12px; font-weight: 600; color: #5f5e5a; }
 .day-date { font-size: 11px; color: #b4b2a9; margin-top: 2px; }
-.row-label { background: #f8f5f1; border-right: 0.5px solid #d3d1c7; border-bottom: 0.5px solid #e8e0d8; padding: 8px 4px; font-size: 11px; color: #888780; display: flex; align-items: center; justify-content: center; text-align: center; }
-.day-cell { border-right: 0.5px solid #d3d1c7; border-bottom: 0.5px solid #e8e0d8; padding: 5px; min-height: 70px; }
-.day-cell:last-child { border-right: none; }
-.day-cell.middag { min-height: 80px; }
-.school-badge { display: block; background: #e1f5ee; color: #0f6e56; font-size: 10px; padding: 3px 5px; border-radius: 4px; margin-bottom: 3px; font-weight: 500; }
-.creche-badge { display: block; background: #faeeda; color: #854f0b; font-size: 10px; padding: 3px 5px; border-radius: 4px; margin-bottom: 3px; font-weight: 500; }
-.vrij-badge { display: block; background: #fcebeb; color: #a32d2d; font-size: 10px; padding: 3px 5px; border-radius: 4px; margin-bottom: 3px; font-weight: 500; }
-.activiteit-badge { display: block; background: #eeedfe; color: #534ab7; font-size: 10px; padding: 3px 5px; border-radius: 4px; margin-bottom: 3px; font-weight: 500; }
-.oppas-block { border-radius: 6px; padding: 6px 7px; cursor: pointer; border-left: 3px solid; margin-bottom: 3px; }
-.oppas-block:hover { opacity: 0.8; }
-.oppas-block.gizan { background: #eeedfe; color: #534ab7; border-color: #7f77dd; }
-.oppas-block.charlotte { background: #fbeaf0; color: #993556; border-color: #d4537e; }
-.oppas-block.paula { background: #e1f5ee; color: #0f6e56; border-color: #1d9e75; }
-.oppas-block.open { background: #fcebeb; color: #a32d2d; border-left: 3px dashed #e24b4a; }
-.oppas-name { font-size: 12px; font-weight: 600; }
-.oppas-time { font-size: 10px; opacity: 0.8; margin-top: 2px; }
+
+.timeline-cell { border-right: 0.5px solid #d3d1c7; padding: 8px 6px; min-height: 120px; }
+.timeline-cell:last-child { border-right: none; }
+.tl-vrijdag { font-size: 10px; color: #a32d2d; font-weight: 500; margin-bottom: 5px; }
+.tl-activiteit { font-size: 10px; color: #534ab7; margin-bottom: 4px; }
+.tl-row { display: flex; align-items: center; gap: 4px; margin-bottom: 6px; }
+.tl-label { font-size: 9px; color: #888780; font-weight: 600; min-width: 36px; text-align: right; flex-shrink: 0; }
+.tl-bar-bg { flex: 1; background: #f1efe8; border-radius: 4px; height: 20px; position: relative; overflow: hidden; }
+.tl-bar { position: absolute; height: 100%; border-radius: 4px; display: flex; align-items: center; justify-content: center; cursor: default; }
+.tl-bar-label { font-size: 9px; font-weight: 600; color: white; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 0 4px; }
+.lauren-bar { background: #1d9e75; }
+.sarah-bar { background: #ef9f27; }
+.sarah-thuis { background: #d3d1c7; }
+.sarah-thuis .tl-bar-label { color: #5f5e5a; }
+.oppas-open { background: #f09595; cursor: pointer; }
+.oppas-open:hover { background: #e24b4a; }
+.gizan-bar { background: #7f77dd; cursor: pointer; }
+.gizan-bar:hover { background: #534ab7; }
+.charlotte-bar { background: #d4537e; cursor: pointer; }
+.charlotte-bar:hover { background: #993556; }
+.paula-bar { background: #1d9e75; cursor: pointer; }
+.paula-bar:hover { background: #0f6e56; }
 
 .month-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin-bottom: 16px; }
 .month-header { text-align: center; font-size: 11px; font-weight: 600; color: #888780; padding: 6px 0; }
@@ -81,7 +87,7 @@ body { font-family: system-ui, sans-serif; background: #fdf8f5; color: #2c2c2a; 
 .year-mini-cell.year-today { background: #534ab7; color: white; font-weight: 600; }
 .year-mini-cell.year-weekend { color: #d3d1c7; }
 .year-mini-cell.year-vrij { background: #fcebeb; color: #a32d2d; }
-.year-mini-cell.year-activiteit { background: #eeedfe; color: #534ab7; border-radius: 3px; }
+.year-mini-cell.year-activiteit { background: #eeedfe; color: #534ab7; }
 
 .swap-section { background: white; border: 0.5px solid #d3d1c7; border-radius: 10px; padding: 14px 16px; margin-top: 16px; }
 .swap-title { font-size: 13px; font-weight: 600; margin-bottom: 8px; }
