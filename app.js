@@ -75,6 +75,15 @@ function fmtHr(h) {
   const mins = h % 1 === 0.5 ? '30' : '00';
   return hrs + ':' + mins;
 }
+function parseTime(timeStr) {
+  if (!timeStr) return null;
+  const parts = timeStr.match(/(\d{1,2})[:\.](\d{2})[^0-9]+(\d{1,2})[:\.](\d{2})/);
+  if (!parts) return null;
+  return {
+    start: parseInt(parts[1]) + parseInt(parts[2]) / 60,
+    end: parseInt(parts[3]) + parseInt(parts[4]) / 60,
+  };
+}
 
 function getMonday(date) {
   const d = new Date(date);
@@ -262,8 +271,8 @@ function renderWeekView() {
       if (vrij || !heeftCreche) {
         barHtml = `<div class="tl-bar thuis-bar" style="left:0%;width:100%"><span class="tl-bar-label">${vrij ? 'Vrije dag' : 'Thuis'}</span></div>`;
       } else {
-        const ochtL = offsetPct(DAY_START);
         const ochtW = pct(DAY_START, 9);
+        const ochtL = offsetPct(DAY_START);
         const crecheL = offsetPct(9);
         const crecheW = pct(9, 17);
         const midL = offsetPct(17);
@@ -283,18 +292,24 @@ function renderWeekView() {
     dates.forEach((d, i) => {
       const vrij = isVrijeDag(d);
       const lauren = LAUREN_TIMES[i];
-      const oppasStart = vrij ? DAY_START : lauren.end;
-      const oppasL = offsetPct(oppasStart);
-      const oppasW = pct(oppasStart, DAY_END);
       const entry = sched['day_' + i];
       const u = entry ? getUserInfo(entry.email) : null;
+
       let barHtml = '';
       if (entry) {
+        const parsed = parseTime(entry.time);
+        const oppasStart = parsed ? Math.max(parsed.start, DAY_START) : (vrij ? DAY_START : lauren.end);
+        const oppasEnd = parsed ? Math.min(parsed.end, DAY_END) : DAY_END;
+        const oppasL = offsetPct(oppasStart);
+        const oppasW = pct(oppasStart, oppasEnd);
         barHtml = `<div class="tl-bar ${u.cls}-bar" style="left:${oppasL}%;width:${oppasW}%" onclick="openEdit(${i})">
           <span class="tl-bar-label">${u.name} ${entry.time || ''}</span>
         </div>`;
       } else {
-        barHtml = `<div class="tl-bar oppas-open" style="left:${oppasL}%;width:${oppasW}%" onclick="openAdd(${i})">
+        const defaultStart = vrij ? DAY_START : lauren.end;
+        const defaultL = offsetPct(defaultStart);
+        const defaultW = pct(defaultStart, DAY_END);
+        barHtml = `<div class="tl-bar oppas-open" style="left:${defaultL}%;width:${defaultW}%" onclick="openAdd(${i})">
           <span class="tl-bar-label">Onbezet</span>
         </div>`;
       }
@@ -394,7 +409,7 @@ window.openAdd = function(dayIndex) {
       </select>
     </div>
     <div class="modal-row">
-      <label class="modal-label">Tijdstip</label>
+      <label class="modal-label">Tijdstip (bijv. 08:30–18:00)</label>
       <input class="modal-input" id="m-time" value="15:00–18:00" />
     </div>
     <div class="modal-actions">
@@ -418,7 +433,7 @@ window.openEdit = function(dayIndex) {
       </select>
     </div>
     <div class="modal-row">
-      <label class="modal-label">Tijdstip</label>
+      <label class="modal-label">Tijdstip (bijv. 08:30–18:00)</label>
       <input class="modal-input" id="m-time" value="${entry?.time || '15:00–18:00'}" />
     </div>
     <div class="modal-actions">
