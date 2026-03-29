@@ -17,20 +17,14 @@ const DAY_START = 8.5;
 const DAY_END = 18;
 const TOTAL_HRS = DAY_END - DAY_START;
 
-const LAUREN = [
+const LAUREN_TIMES = [
   { start: 8.5, end: 15 },
   { start: 8.5, end: 15 },
   { start: 8.5, end: 12.5 },
   { start: 8.5, end: 15 },
   { start: 8.5, end: 15 },
 ];
-const SARAH = [
-  null,
-  { start: 9, end: 17 },
-  null,
-  { start: 9, end: 17 },
-  null,
-];
+const SARAH_CRECHE = [false, true, false, true, false];
 
 const VRIJ_KEYWORDS = ['vrij','vakantie','paasdag','hemelvaart','pinkster','koningsdag','bevrijding','studiedag'];
 
@@ -73,7 +67,7 @@ onAuthStateChanged(auth, user => {
 function pct(start, end) {
   return Math.round(((end - start) / TOTAL_HRS) * 100);
 }
-function offset(start) {
+function offsetPct(start) {
   return Math.round(((start - DAY_START) / TOTAL_HRS) * 100);
 }
 function fmtHr(h) {
@@ -212,6 +206,8 @@ function renderWeekView() {
     scheduleCache[weekKey] = sched;
 
     let html = '<div class="week-grid">';
+
+    // Header rij
     html += '<div class="grid-corner">Dag</div>';
     dates.forEach((d, i) => {
       html += `<div class="grid-header ${isToday(d) ? 'today' : ''}">
@@ -220,60 +216,89 @@ function renderWeekView() {
       </div>`;
     });
 
+    // Parro meldingen rij
+    html += '<div class="grid-corner">Parro</div>';
     dates.forEach((d, i) => {
       const vrij = isVrijeDag(d);
       const vrijLabel = getVrijLabel(d);
       const activiteiten = getActiviteitenForDate(d);
-      const lauren = LAUREN[i];
-      const sarah = SARAH[i];
-      const entry = sched['day_' + i];
-      const u = entry ? getUserInfo(entry.email) : null;
-
-      const laurenW = vrij ? 100 : pct(lauren.start, lauren.end);
-      const laurenL = vrij ? 0 : offset(lauren.start);
-      const sarahW = sarah ? pct(sarah.start, sarah.end) : 100;
-      const sarahL = sarah ? offset(sarah.start) : 0;
-      const oppasStart = vrij ? DAY_START : lauren.end;
-      const oppasW = pct(oppasStart, DAY_END);
-      const oppasL = offset(oppasStart);
-
-      html += `<div class="timeline-cell">
+      html += `<div class="melding-cell">
         ${vrij ? `<div class="tl-vrijdag">🎉 ${vrijLabel || 'Vrije dag'}</div>` : ''}
         ${activiteiten.map(a => `<div class="tl-activiteit">📌 ${a.summary}</div>`).join('')}
-
-        <div class="tl-row">
-          <div class="tl-label">Lauren</div>
-          <div class="tl-bar-bg">
-            <div class="tl-bar lauren-bar" style="left:${laurenL}%;width:${laurenW}%">
-              <span class="tl-bar-label">${vrij ? 'Vrije dag' : fmtHr(lauren.start) + '–' + fmtHr(lauren.end)}</span>
-            </div>
-          </div>
-        </div>
-
-        <div class="tl-row">
-          <div class="tl-label">Sarah</div>
-          <div class="tl-bar-bg">
-            ${sarah
-              ? `<div class="tl-bar sarah-bar" style="left:${sarahL}%;width:${sarahW}%"><span class="tl-bar-label">09:00–17:00</span></div>`
-              : `<div class="tl-bar sarah-thuis" style="left:0%;width:100%"><span class="tl-bar-label">Thuis</span></div>`
-            }
-          </div>
-        </div>
-
-        <div class="tl-row">
-          <div class="tl-label">Oppas</div>
-          <div class="tl-bar-bg">
-            ${entry
-              ? `<div class="tl-bar ${u.cls}-bar" style="left:${oppasL}%;width:${oppasW}%" onclick="openEdit(${i})">
-                  <span class="tl-bar-label">${u.name}</span>
-                </div>`
-              : `<div class="tl-bar oppas-open" style="left:${oppasL}%;width:${oppasW}%" onclick="openAdd(${i})">
-                  <span class="tl-bar-label">Onbezet</span>
-                </div>`
-            }
-          </div>
-        </div>
+        ${!vrij && activiteiten.length === 0 ? '<span style="font-size:10px;color:#d3d1c7;">—</span>' : ''}
       </div>`;
+    });
+
+    // Lauren rij
+    html += '<div class="grid-row-label">Lauren</div>';
+    dates.forEach((d, i) => {
+      const vrij = isVrijeDag(d);
+      const lauren = LAUREN_TIMES[i];
+      let barHtml = '';
+      if (vrij) {
+        barHtml = `<div class="tl-bar thuis-bar" style="left:0%;width:100%"><span class="tl-bar-label">Vrije dag</span></div>`;
+      } else {
+        const schoolL = offsetPct(lauren.start);
+        const schoolW = pct(lauren.start, lauren.end);
+        const thuisL = offsetPct(lauren.end);
+        const thuisW = pct(lauren.end, DAY_END);
+        barHtml = `
+          <div class="tl-bar school-bar" style="left:${schoolL}%;width:${schoolW}%">
+            <span class="tl-bar-label">${fmtHr(lauren.start)}–${fmtHr(lauren.end)}</span>
+          </div>
+          <div class="tl-bar thuis-bar" style="left:${thuisL}%;width:${thuisW}%">
+            <span class="tl-bar-label">Thuis</span>
+          </div>`;
+      }
+      html += `<div class="timeline-cell"><div class="tl-bar-bg">${barHtml}</div></div>`;
+    });
+
+    // Sarah rij
+    html += '<div class="grid-row-label">Sarah</div>';
+    dates.forEach((d, i) => {
+      const vrij = isVrijeDag(d);
+      const heeftCreche = SARAH_CRECHE[i];
+      let barHtml = '';
+      if (vrij || !heeftCreche) {
+        barHtml = `<div class="tl-bar thuis-bar" style="left:0%;width:100%"><span class="tl-bar-label">${vrij ? 'Vrije dag' : 'Thuis'}</span></div>`;
+      } else {
+        const ochtL = offsetPct(DAY_START);
+        const ochtW = pct(DAY_START, 9);
+        const crecheL = offsetPct(9);
+        const crecheW = pct(9, 17);
+        const midL = offsetPct(17);
+        const midW = pct(17, DAY_END);
+        barHtml = `
+          <div class="tl-bar thuis-bar" style="left:${ochtL}%;width:${ochtW}%"></div>
+          <div class="tl-bar school-bar" style="left:${crecheL}%;width:${crecheW}%">
+            <span class="tl-bar-label">Crèche 09–17</span>
+          </div>
+          <div class="tl-bar thuis-bar" style="left:${midL}%;width:${midW}%"></div>`;
+      }
+      html += `<div class="timeline-cell"><div class="tl-bar-bg">${barHtml}</div></div>`;
+    });
+
+    // Oppas rij
+    html += '<div class="grid-row-label">Oppas</div>';
+    dates.forEach((d, i) => {
+      const vrij = isVrijeDag(d);
+      const lauren = LAUREN_TIMES[i];
+      const oppasStart = vrij ? DAY_START : lauren.end;
+      const oppasL = offsetPct(oppasStart);
+      const oppasW = pct(oppasStart, DAY_END);
+      const entry = sched['day_' + i];
+      const u = entry ? getUserInfo(entry.email) : null;
+      let barHtml = '';
+      if (entry) {
+        barHtml = `<div class="tl-bar ${u.cls}-bar" style="left:${oppasL}%;width:${oppasW}%" onclick="openEdit(${i})">
+          <span class="tl-bar-label">${u.name} ${entry.time || ''}</span>
+        </div>`;
+      } else {
+        barHtml = `<div class="tl-bar oppas-open" style="left:${oppasL}%;width:${oppasW}%" onclick="openAdd(${i})">
+          <span class="tl-bar-label">Onbezet</span>
+        </div>`;
+      }
+      html += `<div class="timeline-cell"><div class="tl-bar-bg">${barHtml}</div></div>`;
     });
 
     html += '</div>';
@@ -320,7 +345,7 @@ async function renderMonthView() {
     html += `<div class="month-cell ${isTod ? 'month-today' : ''} ${isWe ? 'month-weekend' : ''}">
       <div class="month-day-num">${day}</div>
       ${vrij ? '<div class="month-badge vrij-m">🎉 Vrij</div>' : ''}
-      ${SARAH[dow] && !isWe ? '<div class="month-badge creche-m">🧸 Crèche</div>' : ''}
+      ${SARAH_CRECHE[dow] && !isWe && !vrij ? '<div class="month-badge creche-m">🧸 Crèche</div>' : ''}
       ${!isWe && !vrij ? '<div class="month-badge school-m">🏫 School</div>' : ''}
       ${activiteiten.map(a => `<div class="month-badge activiteit-m">📌 ${a.summary.length > 10 ? a.summary.slice(0,10)+'…' : a.summary}</div>`).join('')}
       ${entry ? `<div class="month-badge oppas-m ${u.cls}-m">${u.name}</div>` : ''}
@@ -585,7 +610,7 @@ window.syncToGoogleCalendar = async function() {
       status.innerHTML = '<div class="gcal-status-row">Geen oppasdagen gevonden voor jou deze week.</div>';
     } else {
       downloadIcs(generateIcs(myDays), 'oppasdagen.ics');
-      status.innerHTML = '<div class="gcal-status-row">✓ Bestand gedownload! Open het om je oppasdagen toe te voegen aan Google Calendar.</div>';
+      status.innerHTML = '<div class="gcal-status-row">✓ Bestand gedownload! Open het om toe te voegen aan Google Calendar.</div>';
     }
   } catch(e) {
     status.innerHTML = '<div class="gcal-status-row" style="color:#a32d2d;">Fout: ' + e.message + '</div>';
