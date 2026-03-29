@@ -30,29 +30,28 @@ body { font-family: system-ui, sans-serif; background: #fdf8f5; color: #2c2c2a; 
 .main { padding: 16px 20px; max-width: 960px; margin: 0 auto; }
 
 .week-grid { display: grid; grid-template-columns: 70px repeat(5, 1fr); border: 0.5px solid #d3d1c7; border-radius: 10px; overflow: hidden; background: white; margin-bottom: 16px; }
-.grid-corner { background: #f1efe8; border-bottom: 0.5px solid #d3d1c7; border-right: 0.5px solid #d3d1c7; padding: 10px 8px; font-size: 11px; color: #888780; display: flex; align-items: center; justify-content: center; }
+.grid-corner { background: #f1efe8; border-bottom: 0.5px solid #d3d1c7; border-right: 0.5px solid #d3d1c7; padding: 8px; font-size: 10px; color: #888780; display: flex; align-items: center; justify-content: center; text-align: center; }
 .grid-header { background: #f8f5f1; border-bottom: 0.5px solid #d3d1c7; border-right: 0.5px solid #d3d1c7; padding: 10px 8px; text-align: center; }
 .grid-header:last-child { border-right: none; }
 .grid-header.today { background: #eeedfe; }
 .grid-header.today .day-name { color: #534ab7; }
 .day-name { font-size: 12px; font-weight: 600; color: #5f5e5a; }
 .day-date { font-size: 11px; color: #b4b2a9; margin-top: 2px; }
-
-.timeline-cell { border-right: 0.5px solid #d3d1c7; padding: 8px 6px; min-height: 120px; }
+.grid-row-label { background: #f8f5f1; border-right: 0.5px solid #d3d1c7; border-bottom: 0.5px solid #e8e0d8; border-top: 0.5px solid #e8e0d8; padding: 0 8px; font-size: 10px; font-weight: 600; color: #888780; display: flex; align-items: center; justify-content: flex-end; min-height: 36px; }
+.melding-cell { border-right: 0.5px solid #d3d1c7; border-bottom: 0.5px solid #d3d1c7; padding: 6px; min-height: 36px; background: #fdf8f5; }
+.melding-cell:last-child { border-right: none; }
+.tl-vrijdag { font-size: 10px; color: #a32d2d; font-weight: 500; margin-bottom: 2px; }
+.tl-activiteit { font-size: 10px; color: #534ab7; margin-bottom: 2px; }
+.timeline-cell { border-right: 0.5px solid #d3d1c7; border-bottom: 0.5px solid #e8e0d8; padding: 6px; }
 .timeline-cell:last-child { border-right: none; }
-.tl-vrijdag { font-size: 10px; color: #a32d2d; font-weight: 500; margin-bottom: 5px; }
-.tl-activiteit { font-size: 10px; color: #534ab7; margin-bottom: 4px; }
-.tl-row { display: flex; align-items: center; gap: 4px; margin-bottom: 6px; }
-.tl-label { font-size: 9px; color: #888780; font-weight: 600; min-width: 36px; text-align: right; flex-shrink: 0; }
-.tl-bar-bg { flex: 1; background: #f1efe8; border-radius: 4px; height: 20px; position: relative; overflow: hidden; }
-.tl-bar { position: absolute; height: 100%; border-radius: 4px; display: flex; align-items: center; justify-content: center; cursor: default; }
+.tl-bar-bg { width: 100%; background: #f1efe8; border-radius: 4px; height: 22px; position: relative; overflow: hidden; }
+.tl-bar { position: absolute; height: 100%; display: flex; align-items: center; justify-content: center; }
 .tl-bar-label { font-size: 9px; font-weight: 600; color: white; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 0 4px; }
-.lauren-bar { background: #1d9e75; }
-.sarah-bar { background: #ef9f27; }
-.sarah-thuis { background: #d3d1c7; }
-.sarah-thuis .tl-bar-label { color: #5f5e5a; }
-.oppas-open { background: #f09595; cursor: pointer; }
-.oppas-open:hover { background: #e24b4a; }
+.school-bar { background: #1d9e75; }
+.thuis-bar { background: #f09595; }
+.thuis-bar .tl-bar-label { color: white; }
+.oppas-open { background: #e24b4a; cursor: pointer; }
+.oppas-open:hover { background: #a32d2d; }
 .gizan-bar { background: #7f77dd; cursor: pointer; }
 .gizan-bar:hover { background: #534ab7; }
 .charlotte-bar { background: #d4537e; cursor: pointer; }
