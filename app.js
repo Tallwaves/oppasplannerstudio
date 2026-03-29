@@ -1,6 +1,8 @@
 import { auth, db, provider, signInWithPopup, signOut, onAuthStateChanged } from './firebase.js';
 import { collection, doc, setDoc, getDoc, onSnapshot, addDoc, updateDoc, query, orderBy } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
+const PROXY = 'https://ical-proxy.hello-cf8.workers.dev/';
+
 const USERS = {
   'gizan.ezra@gmail.com': { name: 'Gizan', cls: 'gizan', short: 'GZ' },
   'charlottedekker90@gmail.com': { name: 'Charlotte', cls: 'charlotte', short: 'CH' },
@@ -27,6 +29,7 @@ let currentYear = new Date().getFullYear();
 let view = 'week';
 let scheduleCache = {};
 let swapData = [];
+let icalEvents = [];
 
 const loginScreen = document.getElementById('login-screen');
 const appScreen = document.getElementById('app-screen');
@@ -46,6 +49,7 @@ onAuthStateChanged(auth, user => {
     appScreen.style.display = 'block';
     userNameEl.textContent = user.displayName;
     listenSwaps();
+    loadSavedIcal();
     renderAll();
   } else {
     currentUser = null;
@@ -90,11 +94,42 @@ function isToday(d) {
 }
 
 function isWeekend(d) { return d.getDay() === 0 || d.getDay() === 6; }
-
 function getDayOfWeekIndex(d) { return d.getDay() === 0 ? 6 : d.getDay() - 1; }
-
 function getUserInfo(email) {
   return USERS[email] || { name: email.split('@')[0], cls: 'gizan', short: '??' };
+}
+
+function dateToIcalStr(d) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth()+1).padStart(2,'0');
+  const day = String(d.getDate()).padStart(2,'0');
+  return y + m + day;
+}
+
+function isVrijeDag(date) {
+  const ds = dateToIcalStr(date);
+  return icalEvents.some(e => {
+    if (!e.start) return false;
+    const vrijKeywords = ['vrij','vakantie','paasdag','hemelvaart','pinkster','koningsdag','bevrijding','studiedag'];
+    const summaryLower = (e.summary || '').toLowerCase();
+    const isVrij = vrijKeywords.some(k => summaryLower.includes(k));
+    if (!isVrij) return false;
+    if (e.end) return ds >= e.start && ds < e.end;
+    return ds === e.start;
+  });
+}
+
+function getVrijLabel(date) {
+  const ds = dateToIcalStr(date);
+  const match = icalEvents.find(e => {
+    if (!e.start) return false;
+    const vrijKeywords = ['vrij','vakantie','paasdag','hemelvaart','pinkster','koningsdag','bevrijding','studiedag'];
+    const isVrij = (e.summary || '').toLowerCase().split(' ').some(k => vrijKeywords.some(v => k.includes(v)));
+    if (!isVrij) return false;
+    if (e.end) return ds >= e.start && ds < e.end;
+    return ds === e.start;
+  });
+  return match ? match.summary : null;
 }
 
 async function getScheduleForWeek(weekKey) {
@@ -110,6 +145,17 @@ function listenSwaps() {
     swapData = snap.docs.map(d => ({ id: d.id, ...d.data() }));
     renderSwaps();
   });
+}
+
+async function loadSavedIcal() {
+  const snap = await getDoc(doc(db, 'settings', 'ical'));
+  if (snap.exists() && snap.data().events) {
+    icalEvents = snap.data().events;
+    const urlInput = document.getElementById('ical-url');
+    if (urlInput && snap.data().url) urlInput.value = snap.data().url;
+    renderIcalEvents(icalEvents);
+    renderAll();
+  }
 }
 
 function renderAll() {
@@ -150,21 +196,28 @@ function renderWeekView() {
         <div class="day-date">${formatDate(d)}</div>
       </div>`;
     });
+
     html += '<div class="row-label">Ochtend</div>';
     dates.forEach((d, i) => {
+      const vrij = isVrijeDag(d);
+      const vrijLabel = getVrijLabel(d);
       html += `<div class="day-cell">
-        <span class="school-badge">${SCHOOL[i].label}</span>
-        ${CRECHE[i] ? '<span class="creche-badge">🧸 Sarah 09:00–17:00</span>' : ''}
+        ${vrij ? `<span class="vrij-badge">🎉 ${vrijLabel || 'Vrije dag'}</span>` : `<span class="school-badge">${SCHOOL[i].label}</span>`}
+        ${CRECHE[i] && !vrij ? '<span class="creche-badge">🧸 Sarah 09:00–17:00</span>' : ''}
       </div>`;
     });
+
     html += '<div class="row-label">Middag</div>';
     dates.forEach((d, i) => {
+      const vrij = isVrijeDag(d);
       const entry = sched['day_' + i];
       const u = entry ? getUserInfo(entry.email) : null;
       html += `<div class="day-cell middag">
-        ${entry
-          ? `<div class="oppas-block ${u.cls}" onclick="openEdit(${i})"><div class="oppas-name">${u.name}</div><div class="oppas-time">${entry.time || '15:00–18:00'}</div></div>`
-          : `<div class="oppas-block open" onclick="openAdd(${i})"><div class="oppas-name">Onbezet</div><div class="oppas-time">klik om in te vullen</div></div>`
+        ${vrij
+          ? '<span style="font-size:11px;color:#888780;">Geen school</span>'
+          : entry
+            ? `<div class="oppas-block ${u.cls}" onclick="openEdit(${i})"><div class="oppas-name">${u.name}</div><div class="oppas-time">${entry.time || '15:00–18:00'}</div></div>`
+            : `<div class="oppas-block open" onclick="openAdd(${i})"><div class="oppas-name">Onbezet</div><div class="oppas-time">klik om in te vullen</div></div>`
         }
       </div>`;
     });
@@ -183,34 +236,36 @@ async function renderMonthView() {
   const lastDay = new Date(year, month + 1, 0);
   const startDow = firstDay.getDay() === 0 ? 6 : firstDay.getDay() - 1;
 
-  let html = '<div class="month-grid">';
-  DAY_SHORT.forEach(ds => { html += `<div class="month-header">${ds}</div>`; });
-  for (let i = 0; i < startDow; i++) html += '<div class="month-cell empty"></div>';
-
   const weeksNeeded = new Set();
   for (let day = 1; day <= lastDay.getDate(); day++) {
     const date = new Date(year, month, day);
     if (!isWeekend(date)) weeksNeeded.add(getWeekKey(date));
   }
-
   const schedules = {};
   await Promise.all([...weeksNeeded].map(async wk => {
     schedules[wk] = await getScheduleForWeek(wk);
   }));
+
+  const DAY_HEADERS = ['Ma','Di','Wo','Do','Vr','Za','Zo'];
+  let html = '<div class="month-grid">';
+  DAY_HEADERS.forEach(ds => { html += `<div class="month-header">${ds}</div>`; });
+  for (let i = 0; i < startDow; i++) html += '<div class="month-cell empty"></div>';
 
   for (let day = 1; day <= lastDay.getDate(); day++) {
     const date = new Date(year, month, day);
     const dow = getDayOfWeekIndex(date);
     const isWe = isWeekend(date);
     const isTod = isToday(date);
+    const vrij = !isWe && isVrijeDag(date);
     const wk = getWeekKey(date);
-    const entry = !isWe && schedules[wk] ? schedules[wk]['day_' + dow] : null;
+    const entry = !isWe && !vrij && schedules[wk] ? schedules[wk]['day_' + dow] : null;
     const u = entry ? getUserInfo(entry.email) : null;
 
     html += `<div class="month-cell ${isTod ? 'month-today' : ''} ${isWe ? 'month-weekend' : ''}">
       <div class="month-day-num">${day}</div>
-      ${CRECHE[dow] && !isWe ? '<div class="month-badge creche-m">🧸 Crèche</div>' : ''}
-      ${!isWe ? `<div class="month-badge school-m">🏫 School</div>` : ''}
+      ${vrij ? '<div class="month-badge vrij-m">🎉 Vrij</div>' : ''}
+      ${CRECHE[dow] && !isWe && !vrij ? '<div class="month-badge creche-m">🧸</div>' : ''}
+      ${!isWe && !vrij ? `<div class="month-badge school-m">🏫</div>` : ''}
       ${entry ? `<div class="month-badge oppas-m ${u.cls}-m">${u.name}</div>` : ''}
     </div>`;
   }
@@ -221,22 +276,21 @@ async function renderMonthView() {
 async function renderYearView() {
   const content = document.getElementById('main-content');
   let html = '<div class="year-grid">';
-
   for (let m = 0; m < 12; m++) {
     const firstDay = new Date(currentYear, m, 1);
     const lastDay = new Date(currentYear, m + 1, 0);
     const startDow = firstDay.getDay() === 0 ? 6 : firstDay.getDay() - 1;
-
     html += `<div class="year-month">
       <div class="year-month-title">${MONTHS[m]}</div>
       <div class="year-mini-grid">`;
-    DAY_SHORT.forEach(ds => { html += `<div class="year-mini-header">${ds}</div>`; });
+    ['M','D','W','D','V','Z','Z'].forEach(ds => { html += `<div class="year-mini-header">${ds}</div>`; });
     for (let i = 0; i < startDow; i++) html += '<div class="year-mini-cell"></div>';
     for (let day = 1; day <= lastDay.getDate(); day++) {
       const date = new Date(currentYear, m, day);
       const isWe = isWeekend(date);
       const isTod = isToday(date);
-      html += `<div class="year-mini-cell ${isTod ? 'year-today' : ''} ${isWe ? 'year-weekend' : ''}">${day}</div>`;
+      const vrij = !isWe && isVrijeDag(date);
+      html += `<div class="year-mini-cell ${isTod ? 'year-today' : ''} ${isWe ? 'year-weekend' : ''} ${vrij ? 'year-vrij' : ''}">${day}</div>`;
     }
     html += '</div></div>';
   }
@@ -389,6 +443,130 @@ window.navNext = function() {
   renderAll();
 };
 
+window.importCalendar = async function() {
+  const url = document.getElementById('ical-url').value.trim();
+  if (!url) return;
+  const btn = document.getElementById('ical-import-btn');
+  btn.textContent = 'Laden...';
+  btn.disabled = true;
+  try {
+    const res = await fetch(PROXY + '?url=' + encodeURIComponent(url));
+    const text = await res.text();
+    const events = parseIcal(text);
+    icalEvents = events;
+    await setDoc(doc(db, 'settings', 'ical'), { url, events, updatedAt: new Date() }, { merge: true });
+    renderIcalEvents(events);
+    renderAll();
+    showToast(events.length + ' evenementen geïmporteerd!');
+  } catch(e) {
+    showToast('Fout bij laden: ' + e.message);
+  }
+  btn.textContent = 'Importeren';
+  btn.disabled = false;
+};
+
+function parseIcal(text) {
+  const events = [];
+  const lines = text.split('\n').map(l => l.trim());
+  let current = null;
+  lines.forEach(line => {
+    if (line === 'BEGIN:VEVENT') current = {};
+    else if (line === 'END:VEVENT' && current) { events.push(current); current = null; }
+    else if (current) {
+      if (line.startsWith('SUMMARY:')) current.summary = line.slice(8).replace(/\\,/g, ',').replace(/\\n/g, ' ');
+      if (line.startsWith('DTSTART;VALUE=DATE:')) current.start = line.slice(19);
+      if (line.startsWith('DTSTART:')) current.start = line.slice(8, 16);
+      if (line.startsWith('DTEND;VALUE=DATE:')) current.end = line.slice(17);
+    }
+  });
+  return events;
+}
+
+function renderIcalEvents(events) {
+  const container = document.getElementById('ical-events');
+  if (!container) return;
+  const today = dateToIcalStr(new Date());
+  const vrijKeywords = ['vrij','vakantie','paasdag','hemelvaart','pinkster','koningsdag','bevrijding','studiedag'];
+  const upcoming = events
+    .filter(e => e.start && e.start >= today && vrijKeywords.some(k => (e.summary||'').toLowerCase().includes(k)))
+    .slice(0, 8);
+  if (!upcoming.length) {
+    container.innerHTML = '<div style="font-size:12px;color:#888780;margin-top:8px;">Geen aankomende vrije dagen gevonden.</div>';
+    return;
+  }
+  container.innerHTML = '<div style="margin-top:10px;">' + upcoming.map(e => `
+    <div class="ical-event">
+      <div class="ical-date">${formatIcalDate(e.start)}</div>
+      <div class="ical-summary ical-vrij">${e.summary}</div>
+    </div>`).join('') + '</div>';
+}
+
+function formatIcalDate(d) {
+  if (!d || d.length < 8) return d;
+  return d.slice(6,8) + ' ' + ['jan','feb','mrt','apr','mei','jun','jul','aug','sep','okt','nov','dec'][parseInt(d.slice(4,6))-1];
+}
+
+window.syncToGoogleCalendar = async function() {
+  const btn = document.getElementById('gcal-sync-btn');
+  const status = document.getElementById('gcal-status');
+  btn.textContent = 'Bezig...';
+  btn.disabled = true;
+
+  try {
+    const weekKey = getWeekKey(new Date());
+    const snap = await getDoc(doc(db, 'schedules', weekKey));
+    const sched = snap.exists() ? snap.data() : {};
+    const dates = getWeekDates(currentWeekOffset);
+    const myDays = [];
+
+    dates.forEach((d, i) => {
+      const entry = sched['day_' + i];
+      if (entry && entry.email === currentUser.email) {
+        myDays.push({ date: formatDate(d), day: DAYS[i], time: entry.time });
+      }
+    });
+
+    if (!myDays.length) {
+      status.innerHTML = '<div class="gcal-status-row">Geen oppasdagen gevonden voor jou deze week.</div>';
+    } else {
+      const icsContent = generateIcs(myDays, dates);
+      downloadIcs(icsContent, 'oppasdagen.ics');
+      status.innerHTML = '<div class="gcal-status-row">✓ Bestand gedownload! Open het om je oppasdagen toe te voegen aan Google Calendar.</div>';
+    }
+  } catch(e) {
+    status.innerHTML = '<div class="gcal-status-row" style="color:#a32d2d;">Fout: ' + e.message + '</div>';
+  }
+  btn.textContent = 'Sync mijn oppasdagen';
+  btn.disabled = false;
+};
+
+function generateIcs(myDays, dates) {
+  let ics = 'BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//OppasPlanner//NL\n';
+  myDays.forEach((day, i) => {
+    const d = dates[i];
+    const dateStr = dateToIcalStr(d);
+    ics += 'BEGIN:VEVENT\n';
+    ics += 'UID:oppas-' + dateStr + '@oppasplanner\n';
+    ics += 'SUMMARY:Oppas Lauren & Sarah\n';
+    ics += 'DTSTART;VALUE=DATE:' + dateStr + '\n';
+    ics += 'DTEND;VALUE=DATE:' + dateStr + '\n';
+    ics += 'DESCRIPTION:' + day.time + '\n';
+    ics += 'END:VEVENT\n';
+  });
+  ics += 'END:VCALENDAR';
+  return ics;
+}
+
+function downloadIcs(content, filename) {
+  const blob = new Blob([content], { type: 'text/calendar' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 function showModal(content) {
   document.getElementById('modal-body').innerHTML = content;
   document.getElementById('modal-overlay').style.display = 'flex';
@@ -419,60 +597,15 @@ function renderSwaps() {
     </div>`).join('');
 }
 
-
-const PROXY = 'https://ical-proxy.hello-cf8.workers.dev/';
-
-async function loadIcal(url) {
-  const res = await fetch(PROXY + '?url=' + encodeURIComponent(url));
-  const text = await res.text();
-  const events = [];
-  const lines = text.split('\n').map(l => l.trim());
-  let current = null;
-  lines.forEach(line => {
-    if (line === 'BEGIN:VEVENT') current = {};
-    else if (line === 'END:VEVENT' && current) { events.push(current); current = null; }
-    else if (current) {
-      if (line.startsWith('SUMMARY:')) current.summary = line.slice(8).replace(/\\,/g, ',');
-      if (line.startsWith('DTSTART;VALUE=DATE:')) current.start = line.slice(19);
-      if (line.startsWith('DTSTART:')) current.start = line.slice(8, 16);
-      if (line.startsWith('DTEND;VALUE=DATE:')) current.end = line.slice(17);
-    }
-  });
-  return events;
-}
-
-window.importCalendar = async function() {
-  const url = document.getElementById('ical-url').value.trim();
-  if (!url) return;
-  const btn = document.getElementById('ical-import-btn');
-  btn.textContent = 'Laden...';
-  btn.disabled = true;
-  try {
-    const events = await loadIcal(url);
-    await setDoc(doc(db, 'settings', 'ical'), { url, events, updatedAt: new Date() }, { merge: true });
-    renderIcalEvents(events);
-    showToast('Kalender geïmporteerd! ' + events.length + ' evenementen gevonden.');
-  } catch(e) {
-    showToast('Fout bij laden: ' + e.message);
+function showToast(msg) {
+  let t = document.getElementById('toast');
+  if (!t) {
+    t = document.createElement('div');
+    t.id = 'toast';
+    t.style.cssText = 'position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#2c2c2a;color:white;padding:10px 20px;border-radius:8px;font-size:13px;z-index:999;transition:opacity 0.3s;';
+    document.body.appendChild(t);
   }
-  btn.textContent = 'Importeren';
-  btn.disabled = false;
-};
-
-function renderIcalEvents(events) {
-  const container = document.getElementById('ical-events');
-  if (!container) return;
-  const upcoming = events
-    .filter(e => e.start && e.start >= new Date().toISOString().slice(0,8).replace(/-/g,''))
-    .slice(0, 8);
-  container.innerHTML = upcoming.map(e => `
-    <div class="ical-event">
-      <div class="ical-date">${formatIcalDate(e.start)}</div>
-      <div class="ical-summary">${e.summary}</div>
-    </div>`).join('');
-}
-
-function formatIcalDate(d) {
-  if (!d || d.length < 8) return d;
-  return d.slice(6,8) + ' ' + ['jan','feb','mrt','apr','mei','jun','jul','aug','sep','okt','nov','dec'][parseInt(d.slice(4,6))-1] + ' ' + d.slice(0,4);
+  t.textContent = msg;
+  t.style.opacity = '1';
+  setTimeout(() => { t.style.opacity = '0'; }, 2800);
 }
