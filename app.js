@@ -12,7 +12,6 @@ const USERS = {
 const DAYS = ['Maandag','Dinsdag','Woensdag','Donderdag','Vrijdag'];
 const DAY_SHORT = ['Ma','Di','Wo','Do','Vr'];
 const MONTHS = ['Januari','Februari','Maart','April','Mei','Juni','Juli','Augustus','September','Oktober','November','December'];
-
 const SCHOOL = [
   { label: '🏫 Lauren 08:30–15:00' },
   { label: '🏫 Lauren 08:30–15:00' },
@@ -21,6 +20,7 @@ const SCHOOL = [
   { label: '🏫 Lauren 08:30–15:00' },
 ];
 const CRECHE = [false, true, false, true, false];
+const VRIJ_KEYWORDS = ['vrij','vakantie','paasdag','hemelvaart','pinkster','koningsdag','bevrijding','studiedag'];
 
 let currentUser = null;
 let currentWeekOffset = 0;
@@ -106,30 +106,32 @@ function dateToIcalStr(d) {
   return y + m + day;
 }
 
-function isVrijeDag(date) {
+function getEventsForDate(date) {
   const ds = dateToIcalStr(date);
-  return icalEvents.some(e => {
+  return icalEvents.filter(e => {
     if (!e.start) return false;
-    const vrijKeywords = ['vrij','vakantie','paasdag','hemelvaart','pinkster','koningsdag','bevrijding','studiedag'];
-    const summaryLower = (e.summary || '').toLowerCase();
-    const isVrij = vrijKeywords.some(k => summaryLower.includes(k));
-    if (!isVrij) return false;
     if (e.end) return ds >= e.start && ds < e.end;
     return ds === e.start;
   });
 }
 
+function isVrijeDag(date) {
+  return getEventsForDate(date).some(e =>
+    VRIJ_KEYWORDS.some(k => (e.summary||'').toLowerCase().includes(k))
+  );
+}
+
 function getVrijLabel(date) {
-  const ds = dateToIcalStr(date);
-  const match = icalEvents.find(e => {
-    if (!e.start) return false;
-    const vrijKeywords = ['vrij','vakantie','paasdag','hemelvaart','pinkster','koningsdag','bevrijding','studiedag'];
-    const isVrij = (e.summary || '').toLowerCase().split(' ').some(k => vrijKeywords.some(v => k.includes(v)));
-    if (!isVrij) return false;
-    if (e.end) return ds >= e.start && ds < e.end;
-    return ds === e.start;
-  });
+  const match = getEventsForDate(date).find(e =>
+    VRIJ_KEYWORDS.some(k => (e.summary||'').toLowerCase().includes(k))
+  );
   return match ? match.summary : null;
+}
+
+function getActiviteitenForDate(date) {
+  return getEventsForDate(date).filter(e =>
+    !VRIJ_KEYWORDS.some(k => (e.summary||'').toLowerCase().includes(k))
+  );
 }
 
 async function getScheduleForWeek(weekKey) {
@@ -201,23 +203,25 @@ function renderWeekView() {
     dates.forEach((d, i) => {
       const vrij = isVrijeDag(d);
       const vrijLabel = getVrijLabel(d);
+      const activiteiten = getActiviteitenForDate(d);
       html += `<div class="day-cell">
-        ${vrij ? `<span class="vrij-badge">🎉 ${vrijLabel || 'Vrije dag'}</span>` : `<span class="school-badge">${SCHOOL[i].label}</span>`}
-        ${CRECHE[i] && !vrij ? '<span class="creche-badge">🧸 Sarah 09:00–17:00</span>' : ''}
+        ${vrij
+          ? `<span class="vrij-badge">🎉 ${vrijLabel || 'Vrije dag'}</span>`
+          : `<span class="school-badge">${SCHOOL[i].label}</span>`
+        }
+        ${CRECHE[i] ? '<span class="creche-badge">🧸 Sarah 09:00–17:00</span>' : ''}
+        ${activiteiten.map(a => `<span class="activiteit-badge">📌 ${a.summary}</span>`).join('')}
       </div>`;
     });
 
     html += '<div class="row-label">Middag</div>';
     dates.forEach((d, i) => {
-      const vrij = isVrijeDag(d);
       const entry = sched['day_' + i];
       const u = entry ? getUserInfo(entry.email) : null;
       html += `<div class="day-cell middag">
-        ${vrij
-          ? '<span style="font-size:11px;color:#888780;">Geen school</span>'
-          : entry
-            ? `<div class="oppas-block ${u.cls}" onclick="openEdit(${i})"><div class="oppas-name">${u.name}</div><div class="oppas-time">${entry.time || '15:00–18:00'}</div></div>`
-            : `<div class="oppas-block open" onclick="openAdd(${i})"><div class="oppas-name">Onbezet</div><div class="oppas-time">klik om in te vullen</div></div>`
+        ${entry
+          ? `<div class="oppas-block ${u.cls}" onclick="openEdit(${i})"><div class="oppas-name">${u.name}</div><div class="oppas-time">${entry.time || '15:00–18:00'}</div></div>`
+          : `<div class="oppas-block open" onclick="openAdd(${i})"><div class="oppas-name">Onbezet</div><div class="oppas-time">klik om in te vullen</div></div>`
         }
       </div>`;
     });
@@ -257,15 +261,17 @@ async function renderMonthView() {
     const isWe = isWeekend(date);
     const isTod = isToday(date);
     const vrij = !isWe && isVrijeDag(date);
+    const activiteiten = !isWe ? getActiviteitenForDate(date) : [];
     const wk = getWeekKey(date);
-    const entry = !isWe && !vrij && schedules[wk] ? schedules[wk]['day_' + dow] : null;
+    const entry = !isWe && schedules[wk] ? schedules[wk]['day_' + dow] : null;
     const u = entry ? getUserInfo(entry.email) : null;
 
     html += `<div class="month-cell ${isTod ? 'month-today' : ''} ${isWe ? 'month-weekend' : ''}">
       <div class="month-day-num">${day}</div>
       ${vrij ? '<div class="month-badge vrij-m">🎉 Vrij</div>' : ''}
-      ${CRECHE[dow] && !isWe && !vrij ? '<div class="month-badge creche-m">🧸</div>' : ''}
-      ${!isWe && !vrij ? `<div class="month-badge school-m">🏫</div>` : ''}
+      ${CRECHE[dow] && !isWe ? '<div class="month-badge creche-m">🧸</div>' : ''}
+      ${!isWe && !vrij ? '<div class="month-badge school-m">🏫</div>' : ''}
+      ${activiteiten.map(a => `<div class="month-badge activiteit-m">📌 ${a.summary.length > 10 ? a.summary.slice(0,10)+'…' : a.summary}</div>`).join('')}
       ${entry ? `<div class="month-badge oppas-m ${u.cls}-m">${u.name}</div>` : ''}
     </div>`;
   }
@@ -290,7 +296,9 @@ async function renderYearView() {
       const isWe = isWeekend(date);
       const isTod = isToday(date);
       const vrij = !isWe && isVrijeDag(date);
-      html += `<div class="year-mini-cell ${isTod ? 'year-today' : ''} ${isWe ? 'year-weekend' : ''} ${vrij ? 'year-vrij' : ''}">${day}</div>`;
+      const heeftActiviteit = !isWe && !vrij && getActiviteitenForDate(date).length > 0;
+      const title = heeftActiviteit ? getActiviteitenForDate(date).map(a => a.summary).join(', ') : '';
+      html += `<div class="year-mini-cell ${isTod ? 'year-today' : ''} ${isWe ? 'year-weekend' : ''} ${vrij ? 'year-vrij' : ''} ${heeftActiviteit ? 'year-activiteit' : ''}" title="${title}">${day}</div>`;
     }
     html += '</div></div>';
   }
@@ -486,19 +494,18 @@ function renderIcalEvents(events) {
   const container = document.getElementById('ical-events');
   if (!container) return;
   const today = dateToIcalStr(new Date());
-  const vrijKeywords = ['vrij','vakantie','paasdag','hemelvaart','pinkster','koningsdag','bevrijding','studiedag'];
-  const upcoming = events
-    .filter(e => e.start && e.start >= today && vrijKeywords.some(k => (e.summary||'').toLowerCase().includes(k)))
-    .slice(0, 8);
+  const upcoming = events.filter(e => e.start && e.start >= today).slice(0, 10);
   if (!upcoming.length) {
-    container.innerHTML = '<div style="font-size:12px;color:#888780;margin-top:8px;">Geen aankomende vrije dagen gevonden.</div>';
+    container.innerHTML = '<div style="font-size:12px;color:#888780;margin-top:8px;">Geen aankomende evenementen.</div>';
     return;
   }
-  container.innerHTML = '<div style="margin-top:10px;">' + upcoming.map(e => `
-    <div class="ical-event">
+  container.innerHTML = '<div style="margin-top:10px;">' + upcoming.map(e => {
+    const isVrij = VRIJ_KEYWORDS.some(k => (e.summary||'').toLowerCase().includes(k));
+    return `<div class="ical-event">
       <div class="ical-date">${formatIcalDate(e.start)}</div>
-      <div class="ical-summary ical-vrij">${e.summary}</div>
-    </div>`).join('') + '</div>';
+      <div class="ical-summary ${isVrij ? 'ical-vrij' : ''}">${isVrij ? '🎉' : '📌'} ${e.summary}</div>
+    </div>`;
+  }).join('') + '</div>';
 }
 
 function formatIcalDate(d) {
@@ -511,25 +518,22 @@ window.syncToGoogleCalendar = async function() {
   const status = document.getElementById('gcal-status');
   btn.textContent = 'Bezig...';
   btn.disabled = true;
-
   try {
     const weekKey = getWeekKey(new Date());
     const snap = await getDoc(doc(db, 'schedules', weekKey));
     const sched = snap.exists() ? snap.data() : {};
     const dates = getWeekDates(currentWeekOffset);
     const myDays = [];
-
     dates.forEach((d, i) => {
       const entry = sched['day_' + i];
       if (entry && entry.email === currentUser.email) {
-        myDays.push({ date: formatDate(d), day: DAYS[i], time: entry.time });
+        myDays.push({ date: d, day: DAYS[i], time: entry.time });
       }
     });
-
     if (!myDays.length) {
       status.innerHTML = '<div class="gcal-status-row">Geen oppasdagen gevonden voor jou deze week.</div>';
     } else {
-      const icsContent = generateIcs(myDays, dates);
+      const icsContent = generateIcs(myDays);
       downloadIcs(icsContent, 'oppasdagen.ics');
       status.innerHTML = '<div class="gcal-status-row">✓ Bestand gedownload! Open het om je oppasdagen toe te voegen aan Google Calendar.</div>';
     }
@@ -540,17 +544,16 @@ window.syncToGoogleCalendar = async function() {
   btn.disabled = false;
 };
 
-function generateIcs(myDays, dates) {
+function generateIcs(myDays) {
   let ics = 'BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//OppasPlanner//NL\n';
-  myDays.forEach((day, i) => {
-    const d = dates[i];
-    const dateStr = dateToIcalStr(d);
+  myDays.forEach(day => {
+    const dateStr = dateToIcalStr(day.date);
     ics += 'BEGIN:VEVENT\n';
     ics += 'UID:oppas-' + dateStr + '@oppasplanner\n';
     ics += 'SUMMARY:Oppas Lauren & Sarah\n';
     ics += 'DTSTART;VALUE=DATE:' + dateStr + '\n';
     ics += 'DTEND;VALUE=DATE:' + dateStr + '\n';
-    ics += 'DESCRIPTION:' + day.time + '\n';
+    ics += 'DESCRIPTION:' + (day.time || '') + '\n';
     ics += 'END:VEVENT\n';
   });
   ics += 'END:VCALENDAR';
