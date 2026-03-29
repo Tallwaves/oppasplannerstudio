@@ -1,1 +1,20 @@
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: system-ui, sans-serif; background: #fdf8f5; color: #2c2c2a; }
 
+#login-screen { min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+.login-box { background: white; border-radius: 16px; padding: 40px; text-align: center; border: 0.5px solid #e8e0d8; width: 320px; }
+.login-box .logo { font-size: 48px; margin-bottom: 16px; }
+.login-box h1 { font-size: 22px; font-weight: 600; margin-bottom: 8px; }
+.login-box p { color: #888780; font-size: 14px; margin-bottom: 24px; }
+#login-btn { background: #534ab7; color: white; border: none; border-radius: 8px; padding: 12px 24px; font-size: 14px; font-weight: 500; cursor: pointer; width: 100%; }
+#login-btn:hover { background: #3c3489; }
+
+.header { background: white; border-bottom: 0.5px solid #e8e0d8; padding: 14px 20px; display: flex; align-items: center; justify-content: space-between; }
+.header-left { display: flex; align-items: center; gap: 10px; }
+.app-name { font-size: 16px; font-weight: 600; }
+.app-sub { font-size: 12px; color: #888780; }
+.header-right { display: flex; align-items: center; gap: 12px; font-size: 13px; color: #5f5e5a; }
+#logout-btn { background: none; border: 0.5px solid #d3d1c7; border-radius: 6px; padding: 6px 12px; cursor: pointer; font-size: 12px; color: #5f5e5a; }
+#logout-btn:hover { background: #f1efe8; }
+
+.main { padding: 20px; max-width: 900px; margin: 0 auto; }
