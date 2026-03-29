@@ -12,14 +12,26 @@ const USERS = {
 const DAYS = ['Maandag','Dinsdag','Woensdag','Donderdag','Vrijdag'];
 const DAY_SHORT = ['Ma','Di','Wo','Do','Vr'];
 const MONTHS = ['Januari','Februari','Maart','April','Mei','Juni','Juli','Augustus','September','Oktober','November','December'];
-const SCHOOL = [
-  { label: '🏫 Lauren 08:30–15:00' },
-  { label: '🏫 Lauren 08:30–15:00' },
-  { label: '🏫 Lauren 08:30–12:30' },
-  { label: '🏫 Lauren 08:30–15:00' },
-  { label: '🏫 Lauren 08:30–15:00' },
+
+const DAY_START = 8.5;
+const DAY_END = 18;
+const TOTAL_HRS = DAY_END - DAY_START;
+
+const LAUREN = [
+  { start: 8.5, end: 15 },
+  { start: 8.5, end: 15 },
+  { start: 8.5, end: 12.5 },
+  { start: 8.5, end: 15 },
+  { start: 8.5, end: 15 },
 ];
-const CRECHE = [false, true, false, true, false];
+const SARAH = [
+  null,
+  { start: 9, end: 17 },
+  null,
+  { start: 9, end: 17 },
+  null,
+];
+
 const VRIJ_KEYWORDS = ['vrij','vakantie','paasdag','hemelvaart','pinkster','koningsdag','bevrijding','studiedag'];
 
 let currentUser = null;
@@ -57,6 +69,18 @@ onAuthStateChanged(auth, user => {
     appScreen.style.display = 'none';
   }
 });
+
+function pct(start, end) {
+  return Math.round(((end - start) / TOTAL_HRS) * 100);
+}
+function offset(start) {
+  return Math.round(((start - DAY_START) / TOTAL_HRS) * 100);
+}
+function fmtHr(h) {
+  const hrs = Math.floor(h);
+  const mins = h % 1 === 0.5 ? '30' : '00';
+  return hrs + ':' + mins;
+}
 
 function getMonday(date) {
   const d = new Date(date);
@@ -100,10 +124,7 @@ function getUserInfo(email) {
 }
 
 function dateToIcalStr(d) {
-  const y = d.getFullYear();
-  const m = String(d.getMonth()+1).padStart(2,'0');
-  const day = String(d.getDate()).padStart(2,'0');
-  return y + m + day;
+  return d.getFullYear() + String(d.getMonth()+1).padStart(2,'0') + String(d.getDate()).padStart(2,'0');
 }
 
 function getEventsForDate(date) {
@@ -199,32 +220,62 @@ function renderWeekView() {
       </div>`;
     });
 
-    html += '<div class="row-label">Ochtend</div>';
     dates.forEach((d, i) => {
       const vrij = isVrijeDag(d);
       const vrijLabel = getVrijLabel(d);
       const activiteiten = getActiviteitenForDate(d);
-      html += `<div class="day-cell">
-        ${vrij
-          ? `<span class="vrij-badge">🎉 ${vrijLabel || 'Vrije dag'}</span>`
-          : `<span class="school-badge">${SCHOOL[i].label}</span>`
-        }
-        ${CRECHE[i] ? '<span class="creche-badge">🧸 Sarah 09:00–17:00</span>' : ''}
-        ${activiteiten.map(a => `<span class="activiteit-badge">📌 ${a.summary}</span>`).join('')}
+      const lauren = LAUREN[i];
+      const sarah = SARAH[i];
+      const entry = sched['day_' + i];
+      const u = entry ? getUserInfo(entry.email) : null;
+
+      const laurenW = vrij ? 100 : pct(lauren.start, lauren.end);
+      const laurenL = vrij ? 0 : offset(lauren.start);
+      const sarahW = sarah ? pct(sarah.start, sarah.end) : 100;
+      const sarahL = sarah ? offset(sarah.start) : 0;
+      const oppasStart = vrij ? DAY_START : lauren.end;
+      const oppasW = pct(oppasStart, DAY_END);
+      const oppasL = offset(oppasStart);
+
+      html += `<div class="timeline-cell">
+        ${vrij ? `<div class="tl-vrijdag">🎉 ${vrijLabel || 'Vrije dag'}</div>` : ''}
+        ${activiteiten.map(a => `<div class="tl-activiteit">📌 ${a.summary}</div>`).join('')}
+
+        <div class="tl-row">
+          <div class="tl-label">Lauren</div>
+          <div class="tl-bar-bg">
+            <div class="tl-bar lauren-bar" style="left:${laurenL}%;width:${laurenW}%">
+              <span class="tl-bar-label">${vrij ? 'Vrije dag' : fmtHr(lauren.start) + '–' + fmtHr(lauren.end)}</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="tl-row">
+          <div class="tl-label">Sarah</div>
+          <div class="tl-bar-bg">
+            ${sarah
+              ? `<div class="tl-bar sarah-bar" style="left:${sarahL}%;width:${sarahW}%"><span class="tl-bar-label">09:00–17:00</span></div>`
+              : `<div class="tl-bar sarah-thuis" style="left:0%;width:100%"><span class="tl-bar-label">Thuis</span></div>`
+            }
+          </div>
+        </div>
+
+        <div class="tl-row">
+          <div class="tl-label">Oppas</div>
+          <div class="tl-bar-bg">
+            ${entry
+              ? `<div class="tl-bar ${u.cls}-bar" style="left:${oppasL}%;width:${oppasW}%" onclick="openEdit(${i})">
+                  <span class="tl-bar-label">${u.name}</span>
+                </div>`
+              : `<div class="tl-bar oppas-open" style="left:${oppasL}%;width:${oppasW}%" onclick="openAdd(${i})">
+                  <span class="tl-bar-label">Onbezet</span>
+                </div>`
+            }
+          </div>
+        </div>
       </div>`;
     });
 
-    html += '<div class="row-label">Middag</div>';
-    dates.forEach((d, i) => {
-      const entry = sched['day_' + i];
-      const u = entry ? getUserInfo(entry.email) : null;
-      html += `<div class="day-cell middag">
-        ${entry
-          ? `<div class="oppas-block ${u.cls}" onclick="openEdit(${i})"><div class="oppas-name">${u.name}</div><div class="oppas-time">${entry.time || '15:00–18:00'}</div></div>`
-          : `<div class="oppas-block open" onclick="openAdd(${i})"><div class="oppas-name">Onbezet</div><div class="oppas-time">klik om in te vullen</div></div>`
-        }
-      </div>`;
-    });
     html += '</div>';
     content.innerHTML = html;
   });
@@ -269,8 +320,8 @@ async function renderMonthView() {
     html += `<div class="month-cell ${isTod ? 'month-today' : ''} ${isWe ? 'month-weekend' : ''}">
       <div class="month-day-num">${day}</div>
       ${vrij ? '<div class="month-badge vrij-m">🎉 Vrij</div>' : ''}
-      ${CRECHE[dow] && !isWe ? '<div class="month-badge creche-m">🧸</div>' : ''}
-      ${!isWe && !vrij ? '<div class="month-badge school-m">🏫</div>' : ''}
+      ${SARAH[dow] && !isWe ? '<div class="month-badge creche-m">🧸 Crèche</div>' : ''}
+      ${!isWe && !vrij ? '<div class="month-badge school-m">🏫 School</div>' : ''}
       ${activiteiten.map(a => `<div class="month-badge activiteit-m">📌 ${a.summary.length > 10 ? a.summary.slice(0,10)+'…' : a.summary}</div>`).join('')}
       ${entry ? `<div class="month-badge oppas-m ${u.cls}-m">${u.name}</div>` : ''}
     </div>`;
@@ -533,8 +584,7 @@ window.syncToGoogleCalendar = async function() {
     if (!myDays.length) {
       status.innerHTML = '<div class="gcal-status-row">Geen oppasdagen gevonden voor jou deze week.</div>';
     } else {
-      const icsContent = generateIcs(myDays);
-      downloadIcs(icsContent, 'oppasdagen.ics');
+      downloadIcs(generateIcs(myDays), 'oppasdagen.ics');
       status.innerHTML = '<div class="gcal-status-row">✓ Bestand gedownload! Open het om je oppasdagen toe te voegen aan Google Calendar.</div>';
     }
   } catch(e) {
