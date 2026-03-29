@@ -418,3 +418,61 @@ function renderSwaps() {
         ? `<button class="swap-accept" onclick="acceptSwap('${s.id}')">Accepteren</button>` : ''}
     </div>`).join('');
 }
+
+
+const PROXY = 'https://ical-proxy.hello-cf8.workers.dev/';
+
+async function loadIcal(url) {
+  const res = await fetch(PROXY + '?url=' + encodeURIComponent(url));
+  const text = await res.text();
+  const events = [];
+  const lines = text.split('\n').map(l => l.trim());
+  let current = null;
+  lines.forEach(line => {
+    if (line === 'BEGIN:VEVENT') current = {};
+    else if (line === 'END:VEVENT' && current) { events.push(current); current = null; }
+    else if (current) {
+      if (line.startsWith('SUMMARY:')) current.summary = line.slice(8).replace(/\\,/g, ',');
+      if (line.startsWith('DTSTART;VALUE=DATE:')) current.start = line.slice(19);
+      if (line.startsWith('DTSTART:')) current.start = line.slice(8, 16);
+      if (line.startsWith('DTEND;VALUE=DATE:')) current.end = line.slice(17);
+    }
+  });
+  return events;
+}
+
+window.importCalendar = async function() {
+  const url = document.getElementById('ical-url').value.trim();
+  if (!url) return;
+  const btn = document.getElementById('ical-import-btn');
+  btn.textContent = 'Laden...';
+  btn.disabled = true;
+  try {
+    const events = await loadIcal(url);
+    await setDoc(doc(db, 'settings', 'ical'), { url, events, updatedAt: new Date() }, { merge: true });
+    renderIcalEvents(events);
+    showToast('Kalender geïmporteerd! ' + events.length + ' evenementen gevonden.');
+  } catch(e) {
+    showToast('Fout bij laden: ' + e.message);
+  }
+  btn.textContent = 'Importeren';
+  btn.disabled = false;
+};
+
+function renderIcalEvents(events) {
+  const container = document.getElementById('ical-events');
+  if (!container) return;
+  const upcoming = events
+    .filter(e => e.start && e.start >= new Date().toISOString().slice(0,8).replace(/-/g,''))
+    .slice(0, 8);
+  container.innerHTML = upcoming.map(e => `
+    <div class="ical-event">
+      <div class="ical-date">${formatIcalDate(e.start)}</div>
+      <div class="ical-summary">${e.summary}</div>
+    </div>`).join('');
+}
+
+function formatIcalDate(d) {
+  if (!d || d.length < 8) return d;
+  return d.slice(6,8) + ' ' + ['jan','feb','mrt','apr','mei','jun','jul','aug','sep','okt','nov','dec'][parseInt(d.slice(4,6))-1] + ' ' + d.slice(0,4);
+}
