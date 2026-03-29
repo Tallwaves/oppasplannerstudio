@@ -4,7 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Oppas Planner</title>
-  <link rel="stylesheet" href="./style.css"></head>
+  <link rel="stylesheet" href="./style.css">
+</head>
 <body>
 
 <div id="login-screen">
@@ -25,10 +26,17 @@
         <div class="app-sub">Lauren & Sarah</div>
       </div>
     </div>
-    <div class="week-nav">
-      <button id="prev-week" class="nav-btn">&#8592;</button>
-      <span id="week-label" class="week-label"></span>
-      <button id="next-week" class="nav-btn">&#8594;</button>
+    <div class="center-nav">
+      <div class="view-switcher">
+        <button id="view-week" class="view-btn active" onclick="setView('week')">Week</button>
+        <button id="view-month" class="view-btn" onclick="setView('month')">Maand</button>
+        <button id="view-year" class="view-btn" onclick="setView('year')">Jaar</button>
+      </div>
+      <div class="week-nav">
+        <button class="nav-btn" onclick="navPrev()">&#8592;</button>
+        <span id="nav-label" class="week-label"></span>
+        <button class="nav-btn" onclick="navNext()">&#8594;</button>
+      </div>
     </div>
     <div class="header-right">
       <span id="user-name"></span>
@@ -37,8 +45,7 @@
   </div>
 
   <div class="main">
-    <div class="week-grid" id="week-grid"></div>
-
+    <div id="main-content"></div>
     <div class="swap-section">
       <div class="swap-title">🔄 Ruilverzoeken</div>
       <div id="swap-list"></div>
@@ -53,7 +60,7 @@
   </div>
 </div>
 
-<script type="module" src="firebase.js"></script>
-<script type="module" src="app.js"></script>
+<script type="module" src="./firebase.js"></script>
+<script type="module" src="./app.js"></script>
 </body>
 </html>
